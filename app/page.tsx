@@ -46,8 +46,19 @@ type Prep = {
   prepTips: string[];
 };
 
+type LinkedIn = {
+  headlines: string[];
+  about: string;
+  aboutHook: string;
+  topSkills: string[];
+  recruiterKeywords: string[];
+  experienceTips: { area: string; tip: string }[];
+  profileTips: string[];
+  openToWorkTitles: string[];
+};
+
 export default function Home() {
-  const [tab, setTab] = useState<"tailor" | "discover">("tailor");
+  const [tab, setTab] = useState<"tailor" | "discover" | "linkedin">("tailor");
 
   const [resume, setResume] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -80,6 +91,14 @@ export default function Home() {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState("");
   const [jobs, setJobs] = useState<JobResult | null>(null);
+
+  // linkedin state
+  const [targetRole, setTargetRole] = useState("");
+  const [currentHeadline, setCurrentHeadline] = useState("");
+  const [currentAbout, setCurrentAbout] = useState("");
+  const [liLoading, setLiLoading] = useState(false);
+  const [liError, setLiError] = useState("");
+  const [li, setLi] = useState<LinkedIn | null>(null);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -218,6 +237,34 @@ export default function Home() {
     }
   }
 
+  async function genLinkedin() {
+    setLiError("");
+    setLi(null);
+    if (!resume.trim()) {
+      setLiError("Upload or paste your resume first.");
+      return;
+    }
+    setLiLoading(true);
+    try {
+      const res = await fetch("/api/linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, targetRole, currentHeadline, currentAbout }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      setLi(data as LinkedIn);
+      setTimeout(
+        () => document.getElementById("liresults")?.scrollIntoView({ behavior: "smooth" }),
+        80
+      );
+    } catch (e) {
+      setLiError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setLiLoading(false);
+    }
+  }
+
   function tailorToJob(job: Job) {
     setTab("tailor");
     setResult(null);
@@ -263,7 +310,8 @@ export default function Home() {
         <h1>Resume Tweak</h1>
         <p>
           Your end-to-end job-apply copilot. Tailor your resume to any posting, write a
-          cover letter, prep for the interview — or discover live jobs that fit you.
+          cover letter, prep for the interview, optimize your LinkedIn — or discover live
+          jobs that fit you.
         </p>
       </header>
 
@@ -317,6 +365,9 @@ export default function Home() {
         </button>
         <button className={tab === "discover" ? "active" : ""} onClick={() => setTab("discover")}>
           Find jobs for me
+        </button>
+        <button className={tab === "linkedin" ? "active" : ""} onClick={() => setTab("linkedin")}>
+          LinkedIn optimizer
         </button>
       </div>
 
@@ -381,6 +432,47 @@ export default function Home() {
             </button>
           </div>
           {jobsError && <p className="error">{jobsError}</p>}
+        </>
+      )}
+
+      {tab === "linkedin" && (
+        <>
+          <div className="field">
+            <label htmlFor="role">Target role / industry (optional)</label>
+            <input
+              id="role"
+              className="text-input"
+              placeholder="e.g. Senior Frontend Engineer at fintech startups"
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="curhead">Your current LinkedIn headline (optional)</label>
+            <input
+              id="curhead"
+              className="text-input"
+              placeholder="Paste your current headline so I can improve it"
+              value={currentHeadline}
+              onChange={(e) => setCurrentHeadline(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="curabout">Your current About section (optional)</label>
+            <textarea
+              id="curabout"
+              style={{ minHeight: 120 }}
+              placeholder="Paste your current About section to rewrite it (leave blank to generate from scratch)"
+              value={currentAbout}
+              onChange={(e) => setCurrentAbout(e.target.value)}
+            />
+          </div>
+          <div className="actions">
+            <button className="analyze" onClick={genLinkedin} disabled={liLoading || parsing}>
+              {liLoading ? "Optimizing…" : "Optimize my LinkedIn"}
+            </button>
+          </div>
+          {liError && <p className="error">{liError}</p>}
         </>
       )}
 
@@ -645,6 +737,113 @@ export default function Home() {
             </h2>
             <p className="summary">{jobs.overallAdvice}</p>
           </div>
+        </section>
+      )}
+
+      {/* LinkedIn results */}
+      {tab === "linkedin" && li && (
+        <section className="results" id="liresults">
+          <div className="card highlight">
+            <h2>
+              <span className="dot blue" /> Headline options
+            </h2>
+            <p className="summary" style={{ marginBottom: 12 }}>
+              Headline + current role drive ~60% of recruiter search ranking. Pick one:
+            </p>
+            {li.headlines.map((h, i) => (
+              <div className="item" key={i}>
+                <div className="lead">{h}</div>
+                <div className="step-row">
+                  <span className="reason">{h.length} chars</span>
+                  <button className="ghost-btn" onClick={() => copy(h)}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card">
+            <h2>
+              <span className="dot green" /> About section
+            </h2>
+            <div className="reason" style={{ marginBottom: 8 }}>
+              Hook (shown before “see more”): <em>{li.aboutHook}</em>
+            </div>
+            <pre className="letter">{li.about}</pre>
+            <div className="step-row">
+              <span className="reason">{li.about.length} / 2,600 chars</span>
+              <button className="ghost-btn" onClick={() => copy(li.about)}>
+                Copy About
+              </button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>
+              <span className="dot blue" /> Top skills (in order)
+            </h2>
+            <div className="chips">
+              {li.topSkills.map((s, i) => (
+                <span className="chip" key={i}>
+                  {i + 1}. {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>
+              <span className="dot yellow" /> Recruiter search keywords
+            </h2>
+            <div className="chips">
+              {li.recruiterKeywords.map((k, i) => (
+                <span className="chip crit" key={i}>
+                  {k}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {li.experienceTips?.length > 0 && (
+            <div className="card">
+              <h2>
+                <span className="dot green" /> Experience &amp; Featured
+              </h2>
+              {li.experienceTips.map((t, i) => (
+                <div className="item" key={i}>
+                  <div className="lead">{t.area}</div>
+                  <div className="reason">{t.tip}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="card">
+            <h2>
+              <span className="dot blue" /> Profile ranking tips
+            </h2>
+            <ul className="tips">
+              {li.profileTips.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          </div>
+
+          {li.openToWorkTitles?.length > 0 && (
+            <div className="card">
+              <h2>
+                <span className="dot green" /> Set these in “Open to work”
+              </h2>
+              <div className="chips">
+                {li.openToWorkTitles.map((t, i) => (
+                  <span className="chip" key={i}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
