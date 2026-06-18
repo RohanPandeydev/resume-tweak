@@ -398,3 +398,142 @@ button.analyze:disabled {
   margin-top: 48px;
   opacity: 0.7;
 }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 5px;
+  margin: 24px auto 22px;
+  width: fit-content;
+}
+.tabs button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tabs button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Text input */
+.text-input {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 13px 14px;
+  font-size: 15px;
+}
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(108, 140, 255, 0.18);
+}
+
+.section-title {
+  font-size: 16px;
+  margin: 8px 0 -4px;
+  color: var(--muted);
+}
+
+/* Job cards */
+.card.job {
+  padding: 18px 20px;
+}
+.job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.job-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+.job-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.job-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.fit-badge {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.fit-badge.good {
+  background: rgba(62, 207, 142, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(62, 207, 142, 0.35);
+}
+.fit-badge.mid {
+  background: rgba(255, 206, 92, 0.13);
+  color: var(--yellow);
+  border: 1px solid rgba(255, 206, 92, 0.35);
+}
+.fit-badge.low {
+  background: rgba(255, 107, 107, 0.13);
+  color: var(--red);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+}
+.job-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+.pill {
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.pill.good {
+  color: var(--green);
+  border-color: rgba(62, 207, 142, 0.35);
+}
+.pill.mid {
+  color: var(--yellow);
+  border-color: rgba(255, 206, 92, 0.35);
+}
+.pill.low {
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+.pill.gap {
+  color: var(--muted);
+  border-style: dashed;
+}
+.apply-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+.apply-link:hover {
+  text-decoration: underline;
+}
