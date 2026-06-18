@@ -35,6 +35,17 @@ type JobResult = {
   totalFound: number;
 };
 
+type Prep = {
+  questions: {
+    category: string;
+    question: string;
+    whyAsked: string;
+    howToAnswer: string;
+  }[];
+  questionsToAskThem: string[];
+  prepTips: string[];
+};
+
 export default function Home() {
   const [tab, setTab] = useState<"tailor" | "discover">("tailor");
 
@@ -45,10 +56,23 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // JD from URL
+  const [jdUrl, setJdUrl] = useState("");
+  const [fetchingJd, setFetchingJd] = useState(false);
+
   // tailor state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Analysis | null>(null);
+
+  // cover letter
+  const [coverTone, setCoverTone] = useState("confident");
+  const [coverLoading, setCoverLoading] = useState(false);
+  const [coverLetter, setCoverLetter] = useState("");
+
+  // interview prep
+  const [prepLoading, setPrepLoading] = useState(false);
+  const [prep, setPrep] = useState<Prep | null>(null);
 
   // discover state
   const [desiredPackage, setDesiredPackage] = useState("");
@@ -78,9 +102,31 @@ export default function Home() {
     }
   }
 
+  async function fetchJd() {
+    setError("");
+    if (!jdUrl.trim()) return;
+    setFetchingJd(true);
+    try {
+      const res = await fetch("/api/fetch-jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: jdUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't fetch the URL.");
+      setJobDescription(data.text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't fetch the URL.");
+    } finally {
+      setFetchingJd(false);
+    }
+  }
+
   async function analyze() {
     setError("");
     setResult(null);
+    setCoverLetter("");
+    setPrep(null);
     if (!resume.trim() || !jobDescription.trim()) {
       setError("Please add both your resume and the job description.");
       return;
@@ -103,6 +149,44 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function genCover() {
+    setCoverLoading(true);
+    setCoverLetter("");
+    try {
+      const res = await fetch("/api/cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jobDescription, tone: coverTone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      setCoverLetter(data.coverLetter);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate the letter.");
+    } finally {
+      setCoverLoading(false);
+    }
+  }
+
+  async function genPrep() {
+    setPrepLoading(true);
+    setPrep(null);
+    try {
+      const res = await fetch("/api/interview-prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jobDescription }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      setPrep(data as Prep);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate prep.");
+    } finally {
+      setPrepLoading(false);
     }
   }
 
@@ -134,6 +218,29 @@ export default function Home() {
     }
   }
 
+  function tailorToJob(job: Job) {
+    setTab("tailor");
+    setResult(null);
+    setCoverLetter("");
+    setPrep(null);
+    setJdUrl(job.url);
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function copy(text: string) {
+    navigator.clipboard?.writeText(text);
+  }
+
+  function download(text: string, name: string) {
+    const blob = new Blob([text], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   const scoreColor = !result
     ? ""
     : result.matchScore >= 75
@@ -142,26 +249,25 @@ export default function Home() {
     ? "mid"
     : "low";
 
-  function fitClass(score: number) {
-    return score >= 75 ? "good" : score >= 45 ? "mid" : "low";
-  }
-  function salaryClass(s: string) {
-    if (s.startsWith("Likely meets") || s.startsWith("Likely above")) return "good";
-    if (s.startsWith("Possibly below")) return "low";
-    return "mid";
-  }
+  const fitClass = (s: number) => (s >= 75 ? "good" : s >= 45 ? "mid" : "low");
+  const salaryClass = (s: string) =>
+    s.startsWith("Likely meets") || s.startsWith("Likely above")
+      ? "good"
+      : s.startsWith("Possibly below")
+      ? "low"
+      : "mid";
 
   return (
     <main className="wrap">
       <header className="header">
         <h1>Resume Tweak</h1>
         <p>
-          Upload your resume once. Tailor it to a specific job, or discover live jobs
-          that fit you and your target salary.
+          Your end-to-end job-apply copilot. Tailor your resume to any posting, write a
+          cover letter, prep for the interview — or discover live jobs that fit you.
         </p>
       </header>
 
-      {/* Resume input — shared by both modes */}
+      {/* Resume input — shared */}
       <div className="field">
         <label htmlFor="resume">Your resume</label>
         <div
@@ -205,18 +311,11 @@ export default function Home() {
         />
       </div>
 
-      {/* Tabs */}
       <div className="tabs">
-        <button
-          className={tab === "tailor" ? "active" : ""}
-          onClick={() => setTab("tailor")}
-        >
+        <button className={tab === "tailor" ? "active" : ""} onClick={() => setTab("tailor")}>
           Tailor to a job
         </button>
-        <button
-          className={tab === "discover" ? "active" : ""}
-          onClick={() => setTab("discover")}
-        >
+        <button className={tab === "discover" ? "active" : ""} onClick={() => setTab("discover")}>
           Find jobs for me
         </button>
       </div>
@@ -225,6 +324,17 @@ export default function Home() {
         <>
           <div className="field">
             <label htmlFor="jd">Job description</label>
+            <div className="url-row">
+              <input
+                className="text-input"
+                placeholder="Paste a job URL to auto-fill (or paste text below)…"
+                value={jdUrl}
+                onChange={(e) => setJdUrl(e.target.value)}
+              />
+              <button className="ghost-btn" onClick={fetchJd} disabled={fetchingJd || !jdUrl.trim()}>
+                {fetchingJd ? "Fetching…" : "Fetch"}
+              </button>
+            </div>
             <textarea
               id="jd"
               placeholder="Paste the full job posting / description here…"
@@ -381,6 +491,82 @@ export default function Home() {
               </ul>
             </div>
           )}
+
+          {/* Apply-ready actions */}
+          <div className="card highlight">
+            <h2>
+              <span className="dot blue" /> Apply-ready next steps
+            </h2>
+            <div className="step-row">
+              <div className="tone-select">
+                <span>Cover letter tone:</span>
+                <select value={coverTone} onChange={(e) => setCoverTone(e.target.value)}>
+                  <option value="confident">Confident &amp; concise</option>
+                  <option value="enthusiastic">Warm &amp; enthusiastic</option>
+                  <option value="formal">Formal</option>
+                </select>
+              </div>
+              <button className="ghost-btn" onClick={genCover} disabled={coverLoading}>
+                {coverLoading ? "Writing…" : "✍️ Generate cover letter"}
+              </button>
+              <button className="ghost-btn" onClick={genPrep} disabled={prepLoading}>
+                {prepLoading ? "Preparing…" : "🎤 Interview prep"}
+              </button>
+            </div>
+          </div>
+
+          {coverLetter && (
+            <div className="card">
+              <h2>
+                <span className="dot green" /> Your cover letter
+              </h2>
+              <pre className="letter">{coverLetter}</pre>
+              <div className="step-row">
+                <button className="ghost-btn" onClick={() => copy(coverLetter)}>
+                  Copy
+                </button>
+                <button
+                  className="ghost-btn"
+                  onClick={() => download(coverLetter, "cover-letter.txt")}
+                >
+                  Download
+                </button>
+              </div>
+            </div>
+          )}
+
+          {prep && (
+            <div className="card">
+              <h2>
+                <span className="dot blue" /> Interview prep
+              </h2>
+              {prep.questions.map((q, i) => (
+                <div className="item" key={i}>
+                  <div className="lead">
+                    <span className="tag">{q.category}</span> {q.question}
+                  </div>
+                  <div className="reason">
+                    <strong>Why:</strong> {q.whyAsked}
+                  </div>
+                  <div className="reason">
+                    <strong>How to answer:</strong> {q.howToAnswer}
+                  </div>
+                </div>
+              ))}
+              <h3 className="subhead">Smart questions to ask them</h3>
+              <ul className="tips">
+                {prep.questionsToAskThem.map((q, i) => (
+                  <li key={i}>{q}</li>
+                ))}
+              </ul>
+              <h3 className="subhead">Prep tips</h3>
+              <ul className="tips">
+                {prep.prepTips.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -442,9 +628,14 @@ export default function Home() {
                   </span>
                 ))}
               </div>
-              <a href={j.url} target="_blank" rel="noopener noreferrer" className="apply-link">
-                View posting →
-              </a>
+              <div className="step-row">
+                <a href={j.url} target="_blank" rel="noopener noreferrer" className="apply-link">
+                  View posting →
+                </a>
+                <button className="ghost-btn" onClick={() => tailorToJob(j)}>
+                  Tailor my resume to this
+                </button>
+              </div>
             </div>
           ))}
 
@@ -458,8 +649,8 @@ export default function Home() {
       )}
 
       <footer className="foot">
-        Resume analysis via Groq · live jobs via TinyFish Search. Your data is used only
-        to generate results and isn&apos;t stored.
+        Resume analysis &amp; writing via Groq · live jobs &amp; page reading via TinyFish.
+        Your data is used only to generate results and isn&apos;t stored.
       </footer>
     </main>
   );
